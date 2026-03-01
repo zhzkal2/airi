@@ -78,6 +78,99 @@ interface AgoraSTTMessage {
   }>
 }
 
+/**
+ * Parse Agora STT data message (supports both JSON and Protobuf formats).
+ *
+ * Protobuf schema (field numbers):
+ *   1: vendor (varint), 2: version (varint), 3: seqnum (varint),
+ *   4: uid (varint), 5: flag (varint, 0=interim 1=final),
+ *   6: time (varint), 7: lang (varint), 8: starttime (varint),
+ *   9: offsMs (varint), 10: text (string)
+ */
+function parseAgoraSTTData(data: Uint8Array): AgoraSTTMessage | null {
+  // Try JSON first
+  try {
+    const str = new TextDecoder().decode(data)
+    if (str.startsWith('{')) {
+      return JSON.parse(str) as AgoraSTTMessage
+    }
+  }
+  catch { /* not JSON, try protobuf */ }
+
+  // Decode protobuf
+  try {
+    return decodeProtobufSTT(data)
+  }
+  catch (err) {
+    console.warn('Agora STT: protobuf decode failed:', err)
+    // Log hex dump for debugging
+    const hex = Array.from(data.slice(0, 32), b => b.toString(16).padStart(2, '0')).join(' ')
+    console.warn('Agora STT: first 32 bytes:', hex)
+    return null
+  }
+}
+
+function decodeProtobufSTT(buf: Uint8Array): AgoraSTTMessage {
+  const msg: AgoraSTTMessage = {}
+  let pos = 0
+
+  function readVarint(): number {
+    let result = 0
+    let shift = 0
+    while (pos < buf.length) {
+      const byte = buf[pos++]
+      result |= (byte & 0x7F) << shift
+      if ((byte & 0x80) === 0)
+        return result
+      shift += 7
+    }
+    return result
+  }
+
+  function readBytes(): Uint8Array {
+    const len = readVarint()
+    const slice = buf.slice(pos, pos + len)
+    pos += len
+    return slice
+  }
+
+  while (pos < buf.length) {
+    const tag = readVarint()
+    const fieldNumber = tag >>> 3
+    const wireType = tag & 0x07
+
+    if (wireType === 0) { // varint
+      const value = readVarint()
+      switch (fieldNumber) {
+        case 1: msg.vendor = value; break
+        case 2: msg.version = value; break
+        case 3: msg.seqnum = value; break
+        case 4: msg.uid = value; break
+        case 5: msg.is_final = value === 1; break
+        case 6: msg.text_ts = value; break
+        case 7: break // lang
+        case 8: break // starttime
+        case 9: msg.duration_ms = value; break
+        default: break // skip unknown varint fields
+      }
+    }
+    else if (wireType === 2) { // length-delimited (string/bytes/submessage)
+      const bytes = readBytes()
+      if (fieldNumber === 10) {
+        msg.text = new TextDecoder().decode(bytes)
+      }
+      // skip other length-delimited fields
+    }
+    else {
+      // Unknown wire type – bail out to avoid infinite loop
+      break
+    }
+  }
+
+  console.info('Agora STT: decoded protobuf:', msg)
+  return msg
+}
+
 export interface AgoraStreamTranscriptionExtraOptions {
   credentials: AgoraSTTCredentials
   language?: string
@@ -219,8 +312,9 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
     client.on('stream-message', (_uid: number, data: Uint8Array) => {
       console.info('Agora STT: raw stream-message from uid:', _uid, 'size:', data.byteLength)
       try {
-        const jsonStr = new TextDecoder().decode(data)
-        const msg: AgoraSTTMessage = JSON.parse(jsonStr)
+        const msg = parseAgoraSTTData(data)
+        if (!msg)
+          return
 
         if (msg.text && msg.is_final) {
           const transcript = msg.text.trim()
