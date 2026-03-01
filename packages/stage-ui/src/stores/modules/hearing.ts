@@ -2,6 +2,8 @@ import type { TranscriptionProviderWithExtraOptions } from '@xsai-ext/providers/
 import type { WithUnknown } from '@xsai/shared'
 import type { StreamTranscriptionResult, StreamTranscriptionOptions as XSAIStreamTranscriptionOptions } from '@xsai/stream-transcription'
 
+import type { AgoraConnectionState } from '../providers/agora/stream-transcription'
+
 import { tryCatch } from '@moeru/std'
 import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
 import { refManualReset } from '@vueuse/core'
@@ -219,6 +221,7 @@ export const useHearingStore = defineStore('hearing-store', () => {
 
 export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech:audio-input-pipeline', () => {
   const error = ref<string>()
+  const streamingConnectionState = ref<AgoraConnectionState>('idle')
 
   const hearingStore = useHearingStore()
   const { activeTranscriptionProvider, activeTranscriptionModel } = storeToRefs(hearingStore)
@@ -315,6 +318,8 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
     const session = streamingSession.value
     if (!session)
       return
+
+    streamingConnectionState.value = 'idle'
 
     // Special handling for Web Speech API
     if (session.providerId === 'browser-web-speech-api') {
@@ -627,6 +632,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
         if (!freshProvider)
           throw new Error('Failed to re-initialize Agora RTT provider')
 
+        streamingConnectionState.value = 'connecting'
         const result = await hearingStore.transcription(
           providerId,
           freshProvider,
@@ -636,6 +642,9 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
           {
             providerOptions: {
               abortSignal: abortController.signal,
+              onStateChange: (state: AgoraConnectionState) => {
+                streamingConnectionState.value = state
+              },
               ...options?.providerOptions,
             },
           },
@@ -811,6 +820,7 @@ export const useHearingSpeechInputPipeline = defineStore('modules:hearing:speech
 
   return {
     error,
+    streamingConnectionState,
 
     transcribeForRecording,
     transcribeForMediaStream,
