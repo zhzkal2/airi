@@ -12,6 +12,7 @@ import { computed, ref, shallowRef } from 'vue'
 import vadWorkletUrl from '../../workers/vad/process.worklet?worker&url'
 
 import { useProvidersStore } from '../providers'
+import { streamAgoraTranscription } from '../providers/agora'
 import { streamAliyunTranscription } from '../providers/aliyun/stream-transcription'
 import { streamWebSpeechAPITranscription } from '../providers/web-speech-api'
 
@@ -41,6 +42,7 @@ interface HearingTranscriptionInvokeOptions {
 }
 
 const STREAM_TRANSCRIPTION_EXECUTORS: Record<string, StreamTranscription> = {
+  'agora-rtt-transcription': streamAgoraTranscription,
   'aliyun-nls-transcription': streamAliyunTranscription,
   // Web Speech API is handled specially in transcribeForMediaStream since it works directly with MediaStream
 }

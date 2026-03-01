@@ -686,6 +686,78 @@ export const useProvidersStore = defineStore('providers', () => {
         },
       },
     }),
+    'agora-rtt-transcription': {
+      id: 'agora-rtt-transcription',
+      category: 'transcription',
+      tasks: ['speech-to-text', 'automatic-speech-recognition', 'asr', 'stt', 'streaming-transcription'],
+      nameKey: 'settings.pages.providers.provider.agora-rtt.title',
+      name: 'Agora RTT',
+      descriptionKey: 'settings.pages.providers.provider.agora-rtt.description',
+      description: 'Agora Real-Time Transcription via RTC channel.',
+      icon: 'i-simple-icons:agora',
+      defaultOptions: () => ({
+        appId: '',
+        customerId: '',
+        customerSecret: '',
+        language: 'en-US',
+      }),
+      transcriptionFeatures: {
+        supportsGenerate: false,
+        supportsStreamOutput: true,
+        supportsStreamInput: true,
+      },
+      createProvider: async (config) => {
+        const toString = (value: unknown) => typeof value === 'string' ? value.trim() : ''
+
+        const appId = toString(config.appId)
+        const customerId = toString(config.customerId)
+        const customerSecret = toString(config.customerSecret)
+        const language = toString(config.language) || 'en-US'
+
+        if (!appId || !customerId || !customerSecret)
+          throw new Error('Agora RTT credentials are incomplete.')
+
+        const { createAgoraRTTProvider } = await import('./providers/agora')
+        return createAgoraRTTProvider(appId, customerId, customerSecret, { language })
+      },
+      capabilities: {
+        listModels: async () => {
+          return [
+            {
+              id: 'agora-rtt-v1',
+              name: 'Agora RTT Realtime',
+              provider: 'agora-rtt-transcription',
+              description: 'Realtime streaming transcription using Agora RTT.',
+              contextLength: 0,
+              deprecated: false,
+            },
+          ]
+        },
+      },
+      validators: {
+        validateProviderConfig: (config) => {
+          const errors: Error[] = []
+          const toString = (value: unknown) => typeof value === 'string' ? value.trim() : ''
+
+          const appId = toString(config.appId)
+          const customerId = toString(config.customerId)
+          const customerSecret = toString(config.customerSecret)
+
+          if (!appId)
+            errors.push(new Error('App ID is required.'))
+          if (!customerId)
+            errors.push(new Error('Customer ID is required.'))
+          if (!customerSecret)
+            errors.push(new Error('Customer Secret is required.'))
+
+          return {
+            errors,
+            reason: errors.length > 0 ? errors.map(error => error.message).join(', ') : '',
+            valid: errors.length === 0,
+          }
+        },
+      },
+    },
     'aliyun-nls-transcription': {
       id: 'aliyun-nls-transcription',
       category: 'transcription',
