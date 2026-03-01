@@ -199,6 +199,8 @@ async function startStreaming() {
   })
 
   try {
+    // Dispose cached instance so fresh credentials (including token) are picked up
+    await providersStore.disposeProviderInstance(providerId)
     const provider = await providersStore.getProviderInstance<TranscriptionProviderWithExtraOptions<string, any>>(providerId)
     if (!provider)
       throw new Error('Failed to initialize Agora RTT provider.')
