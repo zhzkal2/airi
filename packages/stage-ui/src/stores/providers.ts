@@ -1620,6 +1620,7 @@ export const useProvidersStore = defineStore('providers', () => {
         apiKey: import.meta.env.VITE_MINIMAX_API_KEY || '',
         groupId: import.meta.env.VITE_MINIMAX_GROUP_ID || '',
         voiceId: 'Calm_Woman',
+        baseUrl: 'https://api.minimax.io/v1/',
       }),
       createProvider: async (_config) => {
         // MiniMax uses a custom API, handled directly in Stage.vue
