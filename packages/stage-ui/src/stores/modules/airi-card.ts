@@ -205,10 +205,9 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   }
 
   function initialize() {
-    if (cards.value.has('default'))
-      return
+    // Always update the default card to reflect the latest i18n prompt
     cards.value.set('default', newAiriCard({
-      name: 'ReLU',
+      name: 'Hana',
       version: '1.0.0',
       description: SystemPromptV2(
         t('base.prompt.prefix'),

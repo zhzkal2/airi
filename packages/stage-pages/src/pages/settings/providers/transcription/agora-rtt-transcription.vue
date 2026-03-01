@@ -72,13 +72,6 @@ const credentials = reactive({
     ensureProviderCredentials()
     providers.value[providerId].languages = value
   },
-  get languages() {
-    return providers.value[providerId]?.languages || [] as string[]
-  },
-  set languages(value: string[]) {
-    ensureProviderCredentials()
-    providers.value[providerId].languages = value
-  },
   get token() {
     return providers.value[providerId]?.token || ''
   },
@@ -101,7 +94,6 @@ const credentials = reactive({
     providers.value[providerId].botToken = value
   },
 })
-
 
 function ensureProviderCredentials() {
   if (!providers.value[providerId]) {
