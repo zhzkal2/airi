@@ -350,6 +350,7 @@ function decodeProtobufText(buf: Uint8Array): AgoraSTTMessage {
 export interface AgoraStreamTranscriptionExtraOptions {
   credentials: AgoraSTTCredentials
   language?: string
+  /** Multiple languages for simultaneous recognition */
   languages?: string[]
   abortSignal?: AbortSignal
   /** RTC token for the local user (required when App Certificate is enabled) */
@@ -506,6 +507,7 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
         if (msg.is_final) {
           const transcript = msg.text.trim()
           if (transcript) {
+            const lang = msg.culture || undefined
             text += `${transcript} `
             const delta: StreamTranscriptionDelta = {
               type: 'transcript.text.delta',
@@ -513,7 +515,26 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
             }
             fullStreamCtrl?.enqueue(delta)
             textStreamCtrl?.enqueue(transcript)
-            console.info('Agora STT (final):', transcript)
+            console.info('Agora STT (final):', transcript, lang ? `[${lang}]` : '')
+          }
+
+          // Emit translation results if available
+          if (msg.trans?.length) {
+            for (const trans of msg.trans) {
+              if (trans.isFinal && trans.texts?.length) {
+                const transText = trans.texts.join(' ').trim()
+                if (transText) {
+                  text += `${transText} `
+                  const transDelta: StreamTranscriptionDelta = {
+                    type: 'transcript.text.delta',
+                    delta: transText,
+                  }
+                  fullStreamCtrl?.enqueue(transDelta)
+                  textStreamCtrl?.enqueue(transText)
+                  console.info(`Agora STT (translation ${trans.lang}):`, transText)
+                }
+              }
+            }
           }
         }
         else {
@@ -544,7 +565,7 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
     console.info('Agora STT: microphone track published')
 
     // Start STT agent via REST API
-    const joinResponse = await agoraSTTJoin(credentials, {
+    const joinRequest: Parameters<typeof agoraSTTJoin>[1] = {
       name: `airi-stt-${Date.now()}`,
       languages,
       maxIdleTime: 60,
@@ -556,7 +577,19 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
         pubBotToken: botToken,
         subscribeAudioUids: [localUid],
       },
-    })
+    }
+
+    // Add translateConfig when multiple languages are specified
+    if (languages.length > 1) {
+      joinRequest.translateConfig = {
+        languages: languages.map(source => ({
+          source,
+          target: languages.filter(lang => lang !== source),
+        })),
+      }
+    }
+
+    const joinResponse = await agoraSTTJoin(credentials, joinRequest)
 
     agentId = joinResponse.agent_id
     options.onStateChange?.('waiting-for-bot')
