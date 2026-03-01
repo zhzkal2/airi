@@ -365,7 +365,11 @@ export interface AgoraStreamTranscriptionExtraOptions {
   subBotUid?: string
   /** UID for the STT publisher bot */
   pubBotUid?: string
+  /** Callback for connection state changes */
+  onStateChange?: (state: AgoraConnectionState) => void
 }
+
+export type AgoraConnectionState = 'idle' | 'connecting' | 'publishing' | 'waiting-for-bot' | 'ready' | 'disconnected'
 
 export interface AgoraStreamTranscriptionOptions {
   baseURL?: string | URL
@@ -384,6 +388,7 @@ export interface AgoraStreamTranscriptionOptions {
   pubBotToken?: string
   subBotUid?: string
   pubBotUid?: string
+  onStateChange?: (state: AgoraConnectionState) => void
 }
 
 export function streamAgoraTranscription(options: AgoraStreamTranscriptionOptions): StreamTranscriptionResult {
@@ -458,6 +463,7 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
       }
       options.abortSignal.addEventListener('abort', async () => {
         console.info('Agora STT: abort signal received, cleaning up...')
+        options.onStateChange?.('disconnected')
         await cleanup()
 
         if (!deferredText.isResolved && !deferredText.isRejected) {
@@ -476,6 +482,9 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
     // Debug: track remote users joining/leaving
     client.on('user-joined', (user) => {
       console.info('Agora STT: remote user joined:', user.uid)
+      if (String(user.uid) === botUid) {
+        options.onStateChange?.('ready')
+      }
     })
     client.on('user-left', (user, reason) => {
       console.info('Agora STT: remote user left:', user.uid, reason)
@@ -518,6 +527,7 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
     })
 
     // Join RTC channel
+    options.onStateChange?.('connecting')
     console.info('Agora STT: joining channel', channelName, 'as UID', localUid, 'with token:', token ? 'yes' : 'no')
     await client.join(credentials.appId, channelName, token, Number(localUid))
     console.info('Agora STT: joined channel successfully')
@@ -527,6 +537,7 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
       encoderConfig: 'speech_standard',
     })
     await client.publish([micTrack])
+    options.onStateChange?.('publishing')
     console.info('Agora STT: microphone track published')
 
     // Start STT agent via REST API
@@ -545,11 +556,13 @@ export function streamAgoraTranscription(options: AgoraStreamTranscriptionOption
     })
 
     agentId = joinResponse.agent_id
+    options.onStateChange?.('waiting-for-bot')
     console.info('Agora STT: agent started', agentId, 'status:', joinResponse.status)
   }
 
   doStream().catch((err) => {
     console.error('Agora STT stream error:', err)
+    options.onStateChange?.('disconnected')
     const error = err instanceof Error ? err : new Error(String(err))
     try {
       fullStreamCtrl?.error(error)

@@ -41,7 +41,7 @@ const { t } = useI18n()
 const hearingStore = useHearingStore()
 const hearingPipeline = useHearingSpeechInputPipeline()
 const { transcribeForMediaStream, stopStreamingTranscription } = hearingPipeline
-const { supportsStreamInput } = storeToRefs(hearingPipeline)
+const { supportsStreamInput, streamingConnectionState } = storeToRefs(hearingPipeline)
 const { configured: hearingConfigured, autoSendEnabled, autoSendDelay } = storeToRefs(hearingStore)
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
@@ -426,19 +426,46 @@ watch(autoSendEnabled, (enabled) => {
       <div
         absolute bottom-2 left-2 z-10 flex items-center gap-2
       >
-        <!-- Microphone icon button -->
+        <!-- Microphone toggle button -->
+        <button
+          class="h-8 w-8 flex items-center justify-center rounded-md outline-none transition-all duration-200 active:scale-95"
+          text="lg neutral-500 dark:neutral-400"
+          :title="enabled ? 'Disable microphone' : 'Enable microphone'"
+          @click="enabled = !enabled"
+        >
+          <Transition name="fade" mode="out-in">
+            <IndicatorMicVolume v-if="enabled" class="h-5 w-5" />
+            <div v-else class="i-ph:microphone-slash h-5 w-5" />
+          </Transition>
+        </button>
+        <!-- STT connection status badge -->
+        <Transition name="fade">
+          <span
+            v-if="enabled && streamingConnectionState !== 'idle' && streamingConnectionState !== 'disconnected'"
+            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+            :class="streamingConnectionState === 'ready'
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
+          >
+            <span
+              class="inline-block h-1.5 w-1.5 rounded-full"
+              :class="streamingConnectionState === 'ready'
+                ? 'bg-green-500'
+                : 'bg-yellow-500 animate-pulse'"
+            />
+            {{ streamingConnectionState === 'ready' ? 'Ready' : 'Connecting...' }}
+          </span>
+        </Transition>
+        <!-- Microphone settings tooltip -->
         <TooltipProvider :delay-duration="0" :skip-delay-duration="0">
           <TooltipRoot v-model:open="hearingTooltipOpen">
             <TooltipTrigger as-child>
               <button
-                class="h-8 w-8 flex items-center justify-center rounded-md outline-none transition-all duration-200 active:scale-95"
-                text="lg neutral-500 dark:neutral-400"
+                class="h-6 w-6 flex items-center justify-center rounded-md outline-none transition-all duration-200 active:scale-95"
+                text="neutral-400 dark:neutral-500"
                 :title="t('settings.hearing.title')"
               >
-                <Transition name="fade" mode="out-in">
-                  <IndicatorMicVolume v-if="enabled" class="h-5 w-5" />
-                  <div v-else class="i-ph:microphone-slash h-5 w-5" />
-                </Transition>
+                <div class="i-solar:settings-minimalistic-outline h-4 w-4" />
               </button>
             </TooltipTrigger>
             <Transition name="fade">
