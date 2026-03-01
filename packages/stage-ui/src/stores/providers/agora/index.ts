@@ -40,6 +40,7 @@ export function createAgoraRTTProvider(
         pubBotToken: extraOptions?.pubBotToken || options?.botToken || undefined,
         subBotUid: extraOptions?.subBotUid,
         pubBotUid: extraOptions?.pubBotUid,
+        onStateChange: extraOptions?.onStateChange,
       } as any
     },
   }

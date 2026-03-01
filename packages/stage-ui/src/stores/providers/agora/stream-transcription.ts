@@ -365,6 +365,8 @@ export interface AgoraStreamTranscriptionExtraOptions {
   subBotUid?: string
   /** UID for the STT publisher bot */
   pubBotUid?: string
+  /** Callback for connection state changes */
+  onStateChange?: (state: AgoraConnectionState) => void
 }
 
 export type AgoraConnectionState = 'idle' | 'connecting' | 'publishing' | 'waiting-for-bot' | 'ready' | 'disconnected'
